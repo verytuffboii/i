@@ -1,16 +1,29 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>1v1 Web Arena</title>
+    <title>idk what to put here lol</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        body { margin: 0; background: #0f0f0f; color: #00ffcc; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
-        canvas { border: 3px solid #00ffcc; background: #000; box-shadow: 0 0 15px #00ffcc; }
-        #ui { margin-bottom: 15px; font-size: 1.2rem; text-transform: uppercase; }
+        body { margin: 0; background: #0a0a0a; color: #00ffcc; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; touch-action: none; }
+        canvas { border: 2px solid #00ffcc; background: #000; max-width: 95vw; max-height: 60vh; }
+        #ui { margin-bottom: 10px; font-weight: bold; text-shadow: 0 0 5px #00ffcc; }
+        .controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 20px; width: 90%; }
+        .btn { background: rgba(0, 255, 204, 0.2); border: 2px solid #00ffcc; color: white; padding: 20px; text-align: center; border-radius: 10px; user-select: none; -webkit-tap-highlight-color: transparent; font-weight: bold; }
+        .btn:active { background: #00ffcc; color: black; }
+        #fire-btn { background: rgba(255, 75, 43, 0.3); border-color: #ff4b2b; }
+        #fire-btn:active { background: #ff4b2b; }
     </style>
 </head>
 <body>
-    <div id="ui">Connecting to Arena...</div>
+    <div id="ui">Searching for Opponent...</div>
     <canvas id="game" width="800" height="400"></canvas>
+
+    <div class="controls">
+        <div class="btn" id="up-btn">UP</div>
+        <div class="btn" id="fire-btn">FIRE</div>
+        <div class="btn" id="dash-btn">DASH</div>
+        <div class="btn" id="down-btn">DOWN</div>
+    </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
@@ -20,65 +33,90 @@
         const ui = document.getElementById('ui');
 
         let myRoom = null;
-        let myRole = null;
+        let me = { x: 50, y: 175, size: 30, color: '#00d4ff', hp: 100 };
+        let enemy = { x: 720, y: 175, size: 30, color: '#ff4b2b', hp: 100 };
+        let bullets = [];
         let gameStarted = false;
-
-        const p1 = { x: 50, y: 175, size: 40, color: '#00d4ff' };
-        const p2 = { x: 710, y: 175, size: 40, color: '#ff4b2b' };
-        let me = p1;
-        let enemy = p2;
-
-        socket.on('status', (msg) => ui.innerText = msg);
 
         socket.on('startGame', (data) => {
             myRoom = data.room;
             gameStarted = true;
-            ui.innerText = "Match Live! [W/S to Move]";
-            
-            if (socket.id === data.p2) {
-                myRole = 'p2';
-                me = p2;
-                enemy = p1;
-            } else {
-                myRole = 'p1';
-            }
+            ui.innerText = "BATTLE START!";
+            if (socket.id === data.p2) { me.x = 720; enemy.x = 50; me.color = '#ff4b2b'; enemy.color = '#00d4ff'; }
             animate();
         });
 
         const keys = {};
-        window.onkeydown = (e) => keys[e.key.toLowerCase()] = true;
+        window.onkeydown = (e) => { 
+            keys[e.key.toLowerCase()] = true; 
+            if(e.code === "Space") fire();
+            if(e.key === "Shift") dash();
+        };
         window.onkeyup = (e) => keys[e.key.toLowerCase()] = false;
 
-        function update() {
+        // Mobile Button Logic
+        document.getElementById('up-btn').ontouchstart = () => keys['w'] = true;
+        document.getElementById('up-btn').ontouchend = () => keys['w'] = false;
+        document.getElementById('down-btn').ontouchstart = () => keys['s'] = true;
+        document.getElementById('down-btn').ontouchend = () => keys['s'] = false;
+        document.getElementById('fire-btn').ontouchstart = fire;
+        document.getElementById('dash-btn').ontouchstart = dash;
+
+        function fire() {
             if (!gameStarted) return;
-            let moved = false;
-            if (keys['w'] && me.y > 0) { me.y -= 7; moved = true; }
-            if (keys['s'] && me.y < canvas.height - me.size) { me.y += 7; moved = true; }
-            
-            if (moved) {
-                socket.emit('move', { room: myRoom, y: me.y });
-            }
+            const dir = me.x < 400 ? 1 : -1;
+            const b = { x: me.x + (dir * 20), y: me.y + 15, dir: dir };
+            bullets.push(b);
+            socket.emit('move', { room: myRoom, y: me.y, shoot: true });
+        }
+
+        function dash() {
+            if (!gameStarted) return;
+            me.y += keys['w'] ? -60 : 60; // Quick teleport
+            socket.emit('move', { room: myRoom, y: me.y });
         }
 
         socket.on('opponentMove', (data) => {
             enemy.y = data.y;
+            if (data.shoot) {
+                const dir = enemy.x < 400 ? 1 : -1;
+                bullets.push({ x: enemy.x + (dir * 20), y: enemy.y + 15, dir: dir });
+            }
         });
+
+        function update() {
+            if (!gameStarted) return;
+            if (keys['w'] && me.y > 0) me.y -= 5;
+            if (keys['s'] && me.y < canvas.height - me.size) me.y += 5;
+            
+            socket.emit('move', { room: myRoom, y: me.y });
+
+            bullets.forEach((b, i) => {
+                b.x += b.dir * 10;
+                // Collision check
+                if (b.x > me.x && b.x < me.x + 30 && b.y > me.y && b.y < me.y + 30) {
+                    me.hp -= 5;
+                    bullets.splice(i, 1);
+                }
+                if (b.x < 0 || b.x > 800) bullets.splice(i, 1);
+            });
+
+            if (me.hp <= 0) ui.innerText = "YOU LOST!";
+        }
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-            // Draw me
-            ctx.fillStyle = me.color;
-            ctx.fillRect(me.x, me.y, me.size, me.size);
-            // Draw opponent
-            ctx.fillStyle = enemy.color;
-            ctx.fillRect(enemy.x, enemy.y, enemy.size, enemy.size);
+            // Players
+            ctx.fillStyle = me.color; ctx.fillRect(me.x, me.y, me.size, me.size);
+            ctx.fillStyle = enemy.color; ctx.fillRect(enemy.x, enemy.y, enemy.size, enemy.size);
+            // Bullets
+            ctx.fillStyle = "yellow";
+            bullets.forEach(b => ctx.fillRect(b.x, b.y, 10, 5));
+            // HP Bar
+            ctx.fillStyle = "white"; ctx.fillText(`HP: ${me.hp}`, me.x, me.y - 10);
         }
 
-        function animate() {
-            update();
-            draw();
-            requestAnimationFrame(animate);
-        }
+        function animate() { update(); draw(); requestAnimationFrame(animate); }
     </script>
 </body>
 </html>
