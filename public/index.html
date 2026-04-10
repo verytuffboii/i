@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>1v1 Web Arena</title>
+    <style>
+        body { margin: 0; background: #0f0f0f; color: #00ffcc; font-family: 'Courier New', monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        canvas { border: 3px solid #00ffcc; background: #000; box-shadow: 0 0 15px #00ffcc; }
+        #ui { margin-bottom: 15px; font-size: 1.2rem; text-transform: uppercase; }
+    </style>
+</head>
+<body>
+    <div id="ui">Connecting to Arena...</div>
+    <canvas id="game" width="800" height="400"></canvas>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        const ui = document.getElementById('ui');
+
+        let myRoom = null;
+        let myRole = null;
+        let gameStarted = false;
+
+        const p1 = { x: 50, y: 175, size: 40, color: '#00d4ff' };
+        const p2 = { x: 710, y: 175, size: 40, color: '#ff4b2b' };
+        let me = p1;
+        let enemy = p2;
+
+        socket.on('status', (msg) => ui.innerText = msg);
+
+        socket.on('startGame', (data) => {
+            myRoom = data.room;
+            gameStarted = true;
+            ui.innerText = "Match Live! [W/S to Move]";
+            
+            if (socket.id === data.p2) {
+                myRole = 'p2';
+                me = p2;
+                enemy = p1;
+            } else {
+                myRole = 'p1';
+            }
+            animate();
+        });
+
+        const keys = {};
+        window.onkeydown = (e) => keys[e.key.toLowerCase()] = true;
+        window.onkeyup = (e) => keys[e.key.toLowerCase()] = false;
+
+        function update() {
+            if (!gameStarted) return;
+            let moved = false;
+            if (keys['w'] && me.y > 0) { me.y -= 7; moved = true; }
+            if (keys['s'] && me.y < canvas.height - me.size) { me.y += 7; moved = true; }
+            
+            if (moved) {
+                socket.emit('move', { room: myRoom, y: me.y });
+            }
+        }
+
+        socket.on('opponentMove', (data) => {
+            enemy.y = data.y;
+        });
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            // Draw me
+            ctx.fillStyle = me.color;
+            ctx.fillRect(me.x, me.y, me.size, me.size);
+            // Draw opponent
+            ctx.fillStyle = enemy.color;
+            ctx.fillRect(enemy.x, enemy.y, enemy.size, enemy.size);
+        }
+
+        function animate() {
+            update();
+            draw();
+            requestAnimationFrame(animate);
+        }
+    </script>
+</body>
+</html>
