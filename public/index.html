@@ -1,28 +1,28 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>idk what to put here lol</title>
+    <title>VORTEX ARENA</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <style>
-        body { margin: 0; background: #0a0a0a; color: #00ffcc; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; touch-action: none; }
-        canvas { border: 2px solid #00ffcc; background: #000; max-width: 95vw; max-height: 60vh; }
-        #ui { margin-bottom: 10px; font-weight: bold; text-shadow: 0 0 5px #00ffcc; }
-        .controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 20px; width: 90%; }
-        .btn { background: rgba(0, 255, 204, 0.2); border: 2px solid #00ffcc; color: white; padding: 20px; text-align: center; border-radius: 10px; user-select: none; -webkit-tap-highlight-color: transparent; font-weight: bold; }
-        .btn:active { background: #00ffcc; color: black; }
-        #fire-btn { background: rgba(255, 75, 43, 0.3); border-color: #ff4b2b; }
-        #fire-btn:active { background: #ff4b2b; }
+        body { margin: 0; background: #050505; color: #ff003c; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; touch-action: none; }
+        canvas { border: 4px solid #ff003c; background: radial-gradient(circle, #1a1a1a 0%, #000 100%); box-shadow: 0 0 30px #ff003c; max-width: 95vw; max-height: 50vh; }
+        #ui { margin-bottom: 10px; font-size: 24px; font-weight: 900; text-shadow: 0 0 10px #ff003c; letter-spacing: 2px; }
+        .controls { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 15px; width: 90%; max-width: 500px; }
+        .btn { background: #111; border: 2px solid #ff003c; color: #ff003c; padding: 15px; text-align: center; border-radius: 8px; font-weight: bold; cursor: pointer; user-select: none; }
+        .btn:active { background: #ff003c; color: white; transform: scale(0.95); }
+        #vortex-btn { border-color: #7000ff; color: #7000ff; }
     </style>
 </head>
 <body>
-    <div id="ui">Searching for Opponent...</div>
+    <div id="ui">VORTEX ARENA: WAITING...</div>
     <canvas id="game" width="800" height="400"></canvas>
 
     <div class="controls">
-        <div class="btn" id="up-btn">UP</div>
-        <div class="btn" id="fire-btn">FIRE</div>
-        <div class="btn" id="dash-btn">DASH</div>
-        <div class="btn" id="down-btn">DOWN</div>
+        <div class="btn" id="up-btn">UP (W)</div>
+        <div class="btn" id="vortex-btn">VORTEX (Q)</div>
+        <div class="btn" id="fire-btn">FIRE (SPACE)</div>
+        <div class="btn" id="down-btn">DOWN (S)</div>
+        <div class="btn" id="dash-btn">DASH (SHIFT)</div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
@@ -32,88 +32,118 @@
         const ctx = canvas.getContext('2d');
         const ui = document.getElementById('ui');
 
-        let myRoom = null;
-        let me = { x: 50, y: 175, size: 30, color: '#00d4ff', hp: 100 };
-        let enemy = { x: 720, y: 175, size: 30, color: '#ff4b2b', hp: 100 };
+        let myRoom, myRole;
+        let me = { x: 50, y: 175, size: 35, color: '#ff003c', hp: 100, vortexActive: false };
+        let enemy = { x: 715, y: 175, size: 35, color: '#00ccff', hp: 100 };
         let bullets = [];
         let gameStarted = false;
 
         socket.on('startGame', (data) => {
             myRoom = data.room;
             gameStarted = true;
-            ui.innerText = "BATTLE START!";
-            if (socket.id === data.p2) { me.x = 720; enemy.x = 50; me.color = '#ff4b2b'; enemy.color = '#00d4ff'; }
+            ui.innerText = "ELIMINATE THE ENEMY";
+            if (socket.id === data.p2) { [me.x, enemy.x] = [715, 50]; me.color = '#00ccff'; enemy.color = '#ff003c'; }
             animate();
         });
 
         const keys = {};
-        window.onkeydown = (e) => { 
-            keys[e.key.toLowerCase()] = true; 
+        window.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
             if(e.code === "Space") fire();
-            if(e.key === "Shift") dash();
-        };
-        window.onkeyup = (e) => keys[e.key.toLowerCase()] = false;
+            if(e.key === "q") useVortex();
+            if(e.shiftKey) dash();
+        });
+        window.addEventListener('keyup', (e) => keys[e.key.toLowerCase()] = false);
 
-        // Mobile Button Logic
-        document.getElementById('up-btn').ontouchstart = () => keys['w'] = true;
-        document.getElementById('up-btn').ontouchend = () => keys['w'] = false;
-        document.getElementById('down-btn').ontouchstart = () => keys['s'] = true;
-        document.getElementById('down-btn').ontouchend = () => keys['s'] = false;
-        document.getElementById('fire-btn').ontouchstart = fire;
-        document.getElementById('dash-btn').ontouchstart = dash;
+        // Unified Controls (Mobile + PC Clicks)
+        document.getElementById('up-btn').onmousedown = document.getElementById('up-btn').ontouchstart = () => keys['w'] = true;
+        document.getElementById('up-btn').onmouseup = document.getElementById('up-btn').ontouchend = () => keys['w'] = false;
+        document.getElementById('down-btn').onmousedown = document.getElementById('down-btn').ontouchstart = () => keys['s'] = true;
+        document.getElementById('down-btn').onmouseup = document.getElementById('down-btn').ontouchend = () => keys['s'] = false;
+        document.getElementById('fire-btn').onmousedown = document.getElementById('fire-btn').ontouchstart = fire;
+        document.getElementById('dash-btn').onmousedown = document.getElementById('dash-btn').ontouchstart = dash;
+        document.getElementById('vortex-btn').onmousedown = document.getElementById('vortex-btn').ontouchstart = useVortex;
 
         function fire() {
             if (!gameStarted) return;
             const dir = me.x < 400 ? 1 : -1;
-            const b = { x: me.x + (dir * 20), y: me.y + 15, dir: dir };
-            bullets.push(b);
+            bullets.push({ x: me.x + (dir * 40), y: me.y + 15, dir: dir, owner: 'me' });
             socket.emit('move', { room: myRoom, y: me.y, shoot: true });
         }
 
         function dash() {
             if (!gameStarted) return;
-            me.y += keys['w'] ? -60 : 60; // Quick teleport
+            const dist = keys['w'] ? -80 : 80;
+            me.y = Math.max(0, Math.min(canvas.height - me.size, me.y + dist));
             socket.emit('move', { room: myRoom, y: me.y });
+        }
+
+        function useVortex() {
+            if (!gameStarted) return;
+            me.vortexActive = true;
+            socket.emit('move', { room: myRoom, y: me.y, vortex: true });
+            setTimeout(() => { me.vortexActive = false; }, 1000);
         }
 
         socket.on('opponentMove', (data) => {
             enemy.y = data.y;
-            if (data.shoot) {
-                const dir = enemy.x < 400 ? 1 : -1;
-                bullets.push({ x: enemy.x + (dir * 20), y: enemy.y + 15, dir: dir });
+            if (data.shoot) bullets.push({ x: enemy.x + (enemy.x < 400 ? 40 : -40), y: enemy.y + 15, dir: enemy.x < 400 ? 1 : -1, owner: 'enemy' });
+            if (data.vortex) {
+                enemy.vortexActive = true;
+                setTimeout(() => { enemy.vortexActive = false; }, 1000);
             }
         });
 
         function update() {
             if (!gameStarted) return;
-            if (keys['w'] && me.y > 0) me.y -= 5;
-            if (keys['s'] && me.y < canvas.height - me.size) me.y += 5;
-            
+            if (keys['w'] && me.y > 0) me.y -= 8;
+            if (keys['s'] && me.y < canvas.height - me.size) me.y += 8;
+
+            // Vortex Logic: Pull enemy towards your Y-level
+            if (enemy.vortexActive) {
+                if (me.y < enemy.y) me.y += 3;
+                else if (me.y > enemy.y) me.y -= 3;
+            }
+
             socket.emit('move', { room: myRoom, y: me.y });
 
             bullets.forEach((b, i) => {
-                b.x += b.dir * 10;
-                // Collision check
-                if (b.x > me.x && b.x < me.x + 30 && b.y > me.y && b.y < me.y + 30) {
-                    me.hp -= 5;
+                b.x += b.dir * 15;
+                if (b.owner === 'enemy' && b.x > me.x && b.x < me.x + 35 && b.y > me.y && b.y < me.y + 35) {
+                    me.hp -= 10;
                     bullets.splice(i, 1);
                 }
-                if (b.x < 0 || b.x > 800) bullets.splice(i, 1);
+                if (b.x < -50 || b.x > 850) bullets.splice(i, 1);
             });
 
-            if (me.hp <= 0) ui.innerText = "YOU LOST!";
+            if (me.hp <= 0) { ui.innerText = "TERMINATED"; gameStarted = false; }
+            if (enemy.hp <= 0) { ui.innerText = "VICTORY"; gameStarted = false; }
         }
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             // Players
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = me.color;
             ctx.fillStyle = me.color; ctx.fillRect(me.x, me.y, me.size, me.size);
+            
+            ctx.shadowColor = enemy.color;
             ctx.fillStyle = enemy.color; ctx.fillRect(enemy.x, enemy.y, enemy.size, enemy.size);
+            
+            // Vortex Effect
+            if (me.vortexActive || enemy.vortexActive) {
+                ctx.strokeStyle = me.vortexActive ? '#7000ff' : enemy.color;
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.arc(400, 200, 300, 0, Math.PI * 2); ctx.stroke();
+            }
+
             // Bullets
-            ctx.fillStyle = "yellow";
-            bullets.forEach(b => ctx.fillRect(b.x, b.y, 10, 5));
-            // HP Bar
-            ctx.fillStyle = "white"; ctx.fillText(`HP: ${me.hp}`, me.x, me.y - 10);
+            ctx.shadowBlur = 10; ctx.shadowColor = "yellow"; ctx.fillStyle = "yellow";
+            bullets.forEach(b => ctx.fillRect(b.x, b.y, 15, 4));
+
+            // HUD
+            ctx.shadowBlur = 0; ctx.fillStyle = "white"; ctx.font = "16px Arial";
+            ctx.fillText(`SYSTEM_INTEGRITY: ${me.hp}%`, 20, 30);
         }
 
         function animate() { update(); draw(); requestAnimationFrame(animate); }
